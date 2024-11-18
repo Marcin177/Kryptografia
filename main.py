@@ -142,8 +142,8 @@ class AppGUI:
         key_label = tk.Label(self.key_rsa_frame, text="Wprowadź klucz publiczny:", font=("Arial", 12))
         key_label.pack(pady=10)
 
-        self.public_key_entry = tk.Entry(self.key_rsa_frame, width=60)
-        self.public_key_entry.pack(pady=5)
+        self.public_key_entry_rsa = tk.Entry(self.key_rsa_frame, width=60)
+        self.public_key_entry_rsa.pack(pady=5)
 
         # Przycisk do wczytania klucza publicznego
         def load_public_key():
@@ -154,8 +154,8 @@ class AppGUI:
             if pub_file_path:
                 with open(pub_file_path, "r") as pub_file:
                     public_key_data = pub_file.read()
-                    self.public_key_entry.delete(0, tk.END)
-                    self.public_key_entry.insert(0, public_key_data)
+                    self.public_key_entry_rsa.delete(0, tk.END)
+                    self.public_key_entry_rsa.insert(0, public_key_data)
 
         self.load_public_key_button = tk.Button(self.key_rsa_frame, text="Wczytaj klucz publiczny",
                                                 command=load_public_key)
@@ -165,8 +165,8 @@ class AppGUI:
         key_label2 = tk.Label(self.key_rsa_frame, text="Wprowadź klucz prywatny:", font=("Arial", 12))
         key_label2.pack(pady=10)
 
-        self.private_key_entry = tk.Entry(self.key_rsa_frame, show="*", width=60)
-        self.private_key_entry.pack(pady=5)
+        self.private_key_entry_rsa = tk.Entry(self.key_rsa_frame, show="*", width=60)
+        self.private_key_entry_rsa.pack(pady=5)
 
         # Przycisk do wczytania klucza prywatnego
         def load_private_key():
@@ -177,8 +177,8 @@ class AppGUI:
             if priv_file_path:
                 with open(priv_file_path, "r") as priv_file:
                     private_key_data = priv_file.read()
-                    self.private_key_entry.delete(0, tk.END)
-                    self.private_key_entry.insert(0, private_key_data)
+                    self.private_key_entry_rsa.delete(0, tk.END)
+                    self.private_key_entry_rsa.insert(0, private_key_data)
 
         self.load_private_key_button = tk.Button(self.key_rsa_frame, text="Wczytaj klucz prywatny",
                                                  command=load_private_key)
@@ -239,11 +239,11 @@ class AppGUI:
         private_key_pem = private_key.save_pkcs1().decode('utf-8')
 
         # Uzupełnienie pól klucza
-        self.public_key_entry.delete(0, tk.END)
-        self.public_key_entry.insert(0, public_key_pem)
+        self.public_key_entry_rsa.delete(0, tk.END)
+        self.public_key_entry_rsa.insert(0, public_key_pem)
 
-        self.private_key_entry.delete(0, tk.END)
-        self.private_key_entry.insert(0, private_key_pem)
+        self.private_key_entry_rsa.delete(0, tk.END)
+        self.private_key_entry_rsa.insert(0, private_key_pem)
 
         # Pobranie bieżącej daty i czasu
         current_date = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -277,11 +277,11 @@ class AppGUI:
         messagebox.showinfo("Sukces", "Klucze zostały wygenerowane i zapisane do plików.")
 
     def save_key_rsa_frame(self):
-        # Odczytywanie kluczy z pól tekstowych
+        # Odczytywanie kluczy z pól tekstowych RSA
         global global_public_key, global_private_key
-        global_public_key = self.public_key_entry.get()
-        global_private_key = self.private_key_entry.get()
-        print(self.public_key_entry.get(), self.private_key_entry.get())
+        global_public_key = self.public_key_entry_rsa.get()
+        global_private_key = self.private_key_entry_rsa.get()
+        print(self.public_key_entry_rsa.get(), self.private_key_entry_rsa.get())
 
         # Walidacja obecności przynajmniej jednego klucza
         if not global_public_key and not global_private_key:
@@ -291,7 +291,6 @@ class AppGUI:
         # Walidacja poprawności klucza publicznego
         if global_public_key:
             try:
-                # Próba załadowania klucza publicznego w formacie PEM
                 rsa.PublicKey.load_pkcs1(global_public_key.encode('utf-8'))
             except ValueError:
                 messagebox.showerror("Błąd klucza", "Podany klucz publiczny jest nieprawidłowy.")
@@ -300,7 +299,6 @@ class AppGUI:
         # Walidacja poprawności klucza prywatnego
         if global_private_key:
             try:
-                # Próba załadowania klucza prywatnego w formacie PEM
                 rsa.PrivateKey.load_pkcs1(global_private_key.encode('utf-8'))
             except ValueError:
                 messagebox.showerror("Błąd klucza", "Podany klucz prywatny jest nieprawidłowy.")
@@ -430,48 +428,48 @@ class AppGUI:
         self.add_back_button(self.transmit_frame)
 
         # Ramka dla adresu IP i portu
-        ip_frame = tk.Frame(self.transmit_frame)
-        ip_frame.pack(pady=10)
+        ip_frame_aes = tk.Frame(self.transmit_frame)
+        ip_frame_aes.pack(pady=10)
 
         # Pole adresu IP
-        tk.Label(ip_frame, text="Adres IP:").pack(side=tk.LEFT)
-        self.ip_entry = tk.Entry(ip_frame, width=15)
-        self.ip_entry.pack(side=tk.LEFT, padx=5)
-        self.ip_entry.insert(0, "127.0.0.1")  # Domyślny adres
+        tk.Label(ip_frame_aes, text="Adres IP:").pack(side=tk.LEFT)
+        self.ip_entry_aes = tk.Entry(ip_frame_aes, width=15)
+        self.ip_entry_aes.pack(side=tk.LEFT, padx=5)
+        self.ip_entry_aes.insert(0, "127.0.0.1")  # Domyślny adres
 
         # Pole portu
-        tk.Label(ip_frame, text="Port:").pack(side=tk.LEFT)
-        self.port_entry = tk.Entry(ip_frame, width=6)
-        self.port_entry.pack(side=tk.LEFT, padx=5)
-        self.port_entry.insert(0, "12345")  # Domyślny port
+        tk.Label(ip_frame_aes, text="Port:").pack(side=tk.LEFT)
+        self.port_entry_aes = tk.Entry(ip_frame_aes, width=6)
+        self.port_entry_aes.pack(side=tk.LEFT, padx=5)
+        self.port_entry_aes.insert(0, "12345")  # Domyślny port
 
         # Przycisk do rozpoczęcia/zatrzymania nasłuchiwania
-        self.listen_button = tk.Button(self.transmit_frame,
+        self.listen_button_aes = tk.Button(self.transmit_frame,
                                        text="Start nasłuchiwania",
                                        command=self.toggle_listening)
-        self.listen_button.pack(pady=5)
+        self.listen_button_aes.pack(pady=5)
 
         # Pole tekstowe do wprowadzania wiadomości
-        self.text_input = scrolledtext.ScrolledText(self.transmit_frame,
+        self.text_input_aes = scrolledtext.ScrolledText(self.transmit_frame,
                                                     height=5,
                                                     width=40,
                                                     wrap=tk.WORD)
-        self.text_input.pack(pady=10)
+        self.text_input_aes.pack(pady=10)
 
         # Pole do wyświetlania wiadomości przychodzących
-        self.received_messages = scrolledtext.ScrolledText(self.transmit_frame,
+        self.received_messages_aes = scrolledtext.ScrolledText(self.transmit_frame,
                                                            height=10,
                                                            width=40,
                                                            wrap=tk.WORD)
-        self.received_messages.pack(pady=10)
-        self.received_messages.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
-        self.text_input.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
+        self.received_messages_aes.pack(pady=10)
+        self.received_messages_aes.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
+        self.text_input_aes.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
         # Powiązanie zdarzenia KeyRelease z funkcją wysyłania wiadomości
-        self.text_input.bind("<KeyRelease>", self.send_message_event)
+        self.text_input_aes.bind("<KeyRelease>", self.send_message_event)
 
         # Pole do wyświetlania statusu
-        self.status_label = tk.Label(self.transmit_frame, text="")
-        self.status_label.pack(pady=5)
+        self.status_label_aes = tk.Label(self.transmit_frame, text="")
+        self.status_label_aes.pack(pady=5)
 
         self.is_listening = False
         self.server_thread = None
@@ -529,15 +527,15 @@ class AppGUI:
     def send_message(self):
         global global_key
         try:
-            address = self.ip_entry.get()
-            port = int(self.port_entry.get())
-            text = self.text_input.get("1.0", tk.END).strip()
+            address = self.ip_entry_aes.get()
+            port = int(self.port_entry_aes.get())
+            text = self.text_input_aes.get("1.0", tk.END).strip()
             current_cipher_type = self.current_cipher_type
             if text:
                 if send_text(address, port, text, current_cipher_type, global_key):
-                    self.status_label.config(text="Wiadomość wysłana")
+                    self.status_label_aes.config(text="Wiadomość wysłana")
                 else:
-                    self.status_label.config(text="Błąd wysyłania")
+                    self.status_label_aes.config(text="Błąd wysyłania")
         except Exception as e:
             messagebox.showerror("Błąd", f"Błąd podczas wysyłania: {e}")
 
@@ -563,20 +561,27 @@ class AppGUI:
     def send_message_event_DH(self, event):
         self.send_message_DH()  # Wywołaj funkcję wysyłania wiadomości
 
-    def display_received_message(self, message):
+    def display_received_message_DH(self, message):
         self.received_messages.config(state=tk.NORMAL)  # Umożliwienie edycji
         self.received_messages.delete("1.0", tk.END)
         self.received_messages.insert(tk.END, message + "\n")  # Dodaj wiadomość
         self.received_messages.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
         self.received_messages.yview(tk.END)  # Przewiń do końca
 
+    def display_received_message(self, message):
+        self.received_messages_aes.config(state=tk.NORMAL)  # Umożliwienie edycji
+        self.received_messages_aes.delete("1.0", tk.END)
+        self.received_messages_aes.insert(tk.END, message + "\n")  # Dodaj wiadomość
+        self.received_messages_aes.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
+        self.received_messages_aes.yview(tk.END)  # Przewiń do końca
+
 
     def toggle_listening(self):
         global global_key
         if not self.is_listening:
             try:
-                address = self.ip_entry.get()
-                port = int(self.port_entry.get())
+                address = self.ip_entry_aes.get()
+                port = int(self.port_entry_aes.get())
                 self.stop_event.clear()  # Resetujemy flagę
 
                 # Uruchom serwer w nowym wątku, przekazując funkcję do wyświetlania wiadomości
@@ -584,10 +589,10 @@ class AppGUI:
                 address, port, self.stop_event, self.display_received_message, self.current_cipher_type, global_key))
                 self.server_thread.daemon = True
                 self.server_thread.start()
-                self.text_input.config(state=tk.NORMAL)  # Umożliwienie edycji
+                self.text_input_aes.config(state=tk.NORMAL)  # Umożliwienie edycji
                 self.is_listening = True
-                self.listen_button.config(text="Stop nasłuchiwania")
-                self.status_label.config(text=f"Nasłuchiwanie na {address}:{port}")
+                self.listen_button_aes.config(text="Stop nasłuchiwania")
+                self.status_label_aes.config(text=f"Nasłuchiwanie na {address}:{port}")
             except Exception as e:
                 messagebox.showerror("Błąd", f"Nie można uruchomić nasłuchiwania: {e}")
         else:
@@ -596,13 +601,13 @@ class AppGUI:
             self.stop_event.set()
             self.is_listening = False
 
-            self.text_input.delete("1.0", tk.END)
-            self.text_input.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
-            self.received_messages.config(state=tk.NORMAL)  # Umożliwienie edycji
-            self.received_messages.delete("1.0", tk.END)
-            self.received_messages.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
-            self.listen_button.config(text="Start nasłuchiwania")
-            self.status_label.config(text="Nasłuchiwanie zatrzymane")
+            self.text_input_aes.delete("1.0", tk.END)
+            self.text_input_aes.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
+            self.received_messages_aes.config(state=tk.NORMAL)  # Umożliwienie edycji
+            self.received_messages_aes.delete("1.0", tk.END)
+            self.received_messages_aes.config(state=tk.DISABLED)  # Ustaw na tylko do odczytu
+            self.listen_button_aes.config(text="Start nasłuchiwania")
+            self.status_label_aes.config(text="Nasłuchiwanie zatrzymane")
 
     def toggle_listening_DH(self):
         global global_public_key, global_private_key
@@ -614,7 +619,7 @@ class AppGUI:
 
                 # Uruchom serwer w nowym wątku, przekazując funkcję do wyświetlania wiadomości
                 self.server_thread = threading.Thread(target=receive_text_DH, args=(
-                address, port, self.stop_event, self.display_received_message, self.current_cipher_type, global_key_DH))
+                address, port, self.stop_event, self.display_received_message_DH, self.current_cipher_type, global_key_DH))
                 self.server_thread.daemon = True
                 self.server_thread.start()
                 self.text_input.config(state=tk.NORMAL)  # Umożliwienie edycji
@@ -646,27 +651,8 @@ class AppGUI:
         self.transmit_frame_DH.pack(fill=tk.BOTH, expand=True)
 
     def add_back_button(self, frame):
-        back_button = tk.Button(frame, text="←", command=self.restart_app)
+        back_button = tk.Button(frame, text="←", command=self.show_main_frame)
         back_button.pack(anchor="nw", padx=10, pady=10)
-
-
-
-    def restart_app(self):
-        # Ścieżka do obecnie uruchomionego pliku `.exe`
-        exe_path = sys.executable
-        exe_name = os.path.basename(exe_path)
-        print(f"Restarting {exe_name}")
-
-        # Uruchamianie nowego procesu
-        os.startfile(exe_path)
-
-        # Sprawdzanie, czy nowy proces się uruchomił
-        while not is_process_running(exe_name):
-            time.sleep(0.1)  # Sprawdzanie co 100ms
-
-        # Zamknięcie obecnej instancji
-        sys.exit(0)
-
 
     def show_main_frame(self):
         self.cipher_frame.pack_forget()
