@@ -4,6 +4,8 @@ from cryptography.hazmat.primitives import serialization
 from Function.signature_verifier import verify_signature
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 
 class VerifyPageWidget(QWidget):
     def __init__(self):
@@ -73,6 +75,18 @@ class VerifyPageWidget(QWidget):
         file_cert_layout.addWidget(file_cert_btn)
         layout.addLayout(file_cert_layout)
 
+        # Dodaj input dla łańcucha certyfikatów
+        self.file_cert_chain_path_input = QLineEdit(self)
+        self.file_cert_chain_path_input.setPlaceholderText("Wybierz plik łańcucha certyfikatów...")
+        self.file_cert_chain_path_input.setReadOnly(True)
+        file_cert_chain_btn = QPushButton("Wybierz łańcuch certyfikatów")
+        file_cert_chain_btn.setStyleSheet(self.get_button_style())
+        file_cert_chain_btn.clicked.connect(self.select_cert_chain)
+        file_cert_chain_layout = QHBoxLayout()
+        file_cert_chain_layout.addWidget(self.file_cert_chain_path_input)
+        file_cert_chain_layout.addWidget(file_cert_chain_btn)
+        layout.addLayout(file_cert_chain_layout)
+
         self.file_doc_path_input = QLineEdit(self)
         self.file_doc_path_input.setPlaceholderText("Wybierz plik...")
         self.file_doc_path_input.setReadOnly(True)
@@ -114,6 +128,35 @@ class VerifyPageWidget(QWidget):
         # Ustawienie głównego layoutu
         self.setLayout(layout)
 
+    def select_cert_chain(self):
+        file, _ = QFileDialog.getOpenFileName(self, "Wybierz plik łańcucha certyfikatów", "",
+                                              "Pliki certyfikatów (*.pem *.crt)")
+        if file:
+            self.file_cert_chain_path_input.setText(file)
+
+    def get_certificate_chain(self, cert_chain_file):
+        # Wczytaj certyfikaty z pliku łańcucha
+        with open(cert_chain_file, 'rb') as f:
+            cert_chain_data = f.read()
+
+        # Rozdziel certyfikaty
+        cert_texts = cert_chain_data.split(b'-----END CERTIFICATE-----')
+
+        cert_chain = []
+        for cert_text in cert_texts:
+            if b'BEGIN CERTIFICATE' in cert_text:
+                full_cert_text = cert_text + b'-----END CERTIFICATE-----'
+                try:
+                    cert = x509.load_pem_x509_certificate(full_cert_text, default_backend())
+                    cert_chain.append(cert)
+                except Exception as e:
+                    print(f"Błąd wczytywania certyfikatu: {e}")
+
+        if len(cert_chain) < 3:
+            raise ValueError("Plik łańcucha certyfikatów musi zawierać co najmniej 3 certyfikaty")
+
+        return cert_chain
+
     def get_button_style(self):
         return """ 
             QPushButton { 
@@ -149,44 +192,89 @@ class VerifyPageWidget(QWidget):
         sig_file = self.file_sig_path_input.text()
         cert_file = self.file_cert_path_input.text()
         document_file = self.file_doc_path_input.text()
+        cert_chain_file = self.file_cert_chain_path_input.text()
 
-        if not (sig_file and cert_file and document_file):
+        if not (sig_file and cert_chain_file and document_file):
             self.status_label.setText("Musisz wybrać wszystkie wymagane pliki.")
             self.status_label.setStyleSheet("color: red;")
             return
 
         try:
-            # UWAGA: zmień na bardziej jednoznaczne sprawdzenie
-            result = verify_signature(sig_file, cert_file, document_file)
+            # Weryfikacja podpisu
+            result = verify_signature(sig_file, cert_chain_file, document_file)
 
-            # Sprawdź dokładnie typ wyniku
-            if result == "Podpis jest ważny!":
-                self.status_label.setAlignment(Qt.AlignCenter)
-                self.status_label.setText("Weryfikacja podpisu zakończona sukcesem!")
-                self.status_label.setStyleSheet("""
-                    color: green;
-                    font-size: 16px;
-                    font-weight: bold;
-                    background-color: #e6ffe6;
-                    padding: 5px;
-                    border-radius: 5px;
-                """)
-                # Wyświetlenie danych certyfikatu
-                cert_info = self.get_certificate_info(cert_file)
-                self.update_cert_info(cert_info)
-            else:
+            if result != "Podpis jest ważny!":
                 self.status_label.setAlignment(Qt.AlignCenter)
                 self.status_label.setText("Weryfikacja podpisu nie powiodła się.")
                 self.status_label.setStyleSheet("""
-                    color: red;
-                    font-size: 16px;
-                    font-weight: bold;
-                    background-color: #ffe6e6;
-                    padding: 5px;
-                    border-radius: 5px;
-                """)
+                                    color: red;
+                                    font-size: 16px;
+                                    font-weight: bold;
+                                    background-color: #ffe6e6;
+                                    padding: 5px;
+                                    border-radius: 5px;
+                                """)
+                # Wyczyść informacje o certyfikacie
+                for i in reversed(range(self.cert_info_layout.count())):
+                    widget = self.cert_info_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.deleteLater()
+                return
 
+            # Weryfikacja łańcucha certyfikatów
+            cert_chain = self.get_certificate_chain(cert_chain_file)
+            if not self.verify_certificate_chain(cert_chain):
+                self.status_label.setAlignment(Qt.AlignCenter)
+                self.status_label.setText("Łańcuch certyfikatów jest nieprawidłowy.")
+                self.status_label.setStyleSheet("""
+                                    color: red;
+                                    font-size: 16px;
+                                    font-weight: bold;
+                                    background-color: #ffe6e6;
+                                    padding: 5px;
+                                    border-radius: 5px;
+                                """)
+                # Wyczyść informacje o certyfikacie
+                for i in reversed(range(self.cert_info_layout.count())):
+                    widget = self.cert_info_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.deleteLater()
+                return
+                # Sprawdzenie, czy certyfikat użytkownika jest zgodny z pierwszym certyfikatem w łańcuchu
+            user_cert = x509.load_pem_x509_certificate(open(cert_file, 'rb').read(), default_backend())
+            first_cert = cert_chain[0]
 
+            if user_cert.public_key() != first_cert.public_key():
+                self.status_label.setAlignment(Qt.AlignCenter)
+                self.status_label.setText(
+                        "Certyfikat użytkownika nie jest zgodny z pierwszym certyfikatem w łańcuchu.")
+                self.status_label.setStyleSheet("""
+                                            color: red;
+                                            font-size: 16px;
+                                            font-weight: bold;
+                                            background-color: #ffe6e6;
+                                            padding: 5px;
+                                            border-radius: 5px;
+                                        """)
+                # Wyczyść informacje o certyfikacie
+                for i in reversed(range(self.cert_info_layout.count())):
+                    widget = self.cert_info_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.deleteLater()
+                return
+
+            self.status_label.setAlignment(Qt.AlignCenter)
+            self.status_label.setText("Weryfikacja podpisu zakończona sukcesem!")
+            self.status_label.setStyleSheet("""
+                color: green;
+                font-size: 16px;
+                font-weight: bold;
+                background-color: #e6ffe6;
+                padding: 5px;
+                border-radius: 5px;
+            """)
+            # Wyświetlenie danych certyfikatu
+            self.update_cert_chain_info(cert_chain)
 
         except Exception as e:
             self.status_label.setAlignment(Qt.AlignCenter)
@@ -199,31 +287,37 @@ class VerifyPageWidget(QWidget):
                 padding: 5px;
                 border-radius: 5px;
             """)
+            # Wyczyść informacje o certyfikacie
+            for i in reversed(range(self.cert_info_layout.count())):
+                widget = self.cert_info_layout.itemAt(i).widget()
+                if widget is not None:
+                    widget.deleteLater()
 
-    def update_cert_info(self, cert_info):
-        # Czyści poprzednie informacje o certyfikacie
-        for i in reversed(range(self.cert_info_layout.count())):
-            widget = self.cert_info_layout.itemAt(i).widget()
-            if widget is not None:
-                widget.deleteLater()
+    def verify_certificate_chain(self, cert_chain):
+        for i in range(len(cert_chain) - 1):
+            cert = cert_chain[i]
+            issuer_cert = cert_chain[i + 1]
 
-        # Dodaje nowe informacje o certyfikacie
-        cert_info_label = QLabel(cert_info)
-        cert_info_label.setWordWrap(True)  # Umożliwia zawijanie tekstu
-        cert_info_label.setAlignment(Qt.AlignCenter)  # Wyśrodkowanie
-        cert_info_label.setStyleSheet("""
-            font-size: 14px;  # Zwiększenie rozmiaru czcionki
-            font-weight: bold;  # Pogrubienie tekstu
-            background-color: #f0f0f0;  # Jasne tło
-            padding: 10px;  # Dodanie wypełnienia
-        """)
-        self.cert_info_layout.addWidget(cert_info_label)
-    def get_certificate_info(self, cert_file):
-        with open(cert_file, 'rb') as f:
-            cert_data = f.read()
+            # Sprawdzenie, czy certyfikat jest podpisany przez swojego wystawcę
+            try:
+                issuer_public_key = issuer_cert.public_key()
+                issuer_public_key.verify(
+                    cert.signature,
+                    cert.tbs_certificate_bytes,
+                    padding.PKCS1v15(),
+                    cert.signature_hash_algorithm,
+                )
+            except Exception as e:
+                print(f"Weryfikacja certyfikatu {i} nie powiodła się: {str(e)}")
+                # Wyczyść informacje o certyfikacie
+                for i in reversed(range(self.cert_info_layout.count())):
+                    widget = self.cert_info_layout.itemAt(i).widget()
+                    if widget is not None:
+                        widget.deleteLater()
+                return False
+        return True
 
-        cert = x509.load_pem_x509_certificate(cert_data, default_backend())
-
+    def get_certificate_info_from_cert(self, cert):
         # Słownik tłumaczeń nazw atrybutów
         attr_translations = {
             'commonName': 'Nazwa',
@@ -231,21 +325,30 @@ class VerifyPageWidget(QWidget):
             'localityName': 'Miejscowość',
             'organizationalUnitName': 'Osoba reprezentująca',
             'streetAddress': 'Adres',
-            'serialNumber': 'Numer PESEL'
+            'serialNumber': 'Numer Pesel/NIP',  # Użyj odpowiedniego opisu
         }
 
         # Zbieranie danych z certyfikatu
         cert_info = []
 
-        # Dodawanie informacji o wystawcy w pionie
-        cert_info.append("Podpisany przez:")
-        for attribute in cert.issuer:
-            # Próba przetłumaczenia nazwy atrybutu
+        cert_info.append("------ Certyfikat ------")
+
+        # Informacje o podmiocie
+        cert_info.append("Dane podmiotu:")
+        for attribute in cert.subject:
             attr_name = attribute.oid._name
             translated_name = attr_translations.get(attr_name, attr_name)
             cert_info.append(f"{translated_name}: {attribute.value}")
 
-        # Dodawanie pozostałych informacji
+        cert_info.append("")
+
+        # Informacje o emitencie
+        cert_info.append("Dane emitenta:")
+        for attribute in cert.issuer:
+            attr_name = attribute.oid._name
+            translated_name = attr_translations.get(attr_name, attr_name)
+            cert_info.append(f"{translated_name}: {attribute.value}")
+
         cert_info.append(f"Ważny od: {cert.not_valid_before_utc.strftime('%Y-%m-%d %H:%M:%S')}")
         cert_info.append(f"Ważny do: {cert.not_valid_after_utc.strftime('%Y-%m-%d %H:%M:%S')}")
         cert_info.append(f"Numer seryjny: {cert.serial_number}")
@@ -258,14 +361,34 @@ class VerifyPageWidget(QWidget):
         cert_info.append("Klucz publiczny:")
         cert_info.append(public_key_info)
 
-        # Łączenie wszystkich informacji w jeden string
         return "\n".join(cert_info)
 
+    def update_cert_chain_info(self, cert_chain):
+        # Czyści poprzednie informacje o certyfikacie
+        for i in reversed(range(self.cert_info_layout.count())):
+            widget = self.cert_info_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        # Dodaje nowe informacje o każdym certyfikacie w łańcuchu
+        for cert in cert_chain:
+            cert_info = self.get_certificate_info_from_cert(cert)
+            cert_info_label = QLabel(cert_info)
+            cert_info_label.setWordWrap(True)
+            cert_info_label.setAlignment(Qt.AlignCenter)  # Wyśrodkowanie tekstu
+            cert_info_label.setStyleSheet("""
+                background-color: #f0f0f0;
+                border-radius: 5px;
+                padding: 10px;
+                margin: 5px 0;
+            """)
+            self.cert_info_layout.addWidget(cert_info_label)
     def clear_all_fields(self):
         # Wyczyść ścieżki plików
         self.file_sig_path_input.clear()
         self.file_cert_path_input.clear()
         self.file_doc_path_input.clear()
+        self.file_cert_chain_path_input.clear()
         # Wyczyść etykietę statusu
         self.status_label.clear()
         self.status_label.setStyleSheet("")
@@ -275,5 +398,3 @@ class VerifyPageWidget(QWidget):
             widget = self.cert_info_layout.itemAt(i).widget()
             if widget is not None:
                 widget.deleteLater()
-
-
