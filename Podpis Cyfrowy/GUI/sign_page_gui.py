@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QHBoxLayout
-
+import hmac
+import hashlib
 from Function.sign_executor import load_certificate_and_private_key  # Importujemy funkcje z osobnego pliku
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from cryptography.hazmat.primitives import hashes
@@ -96,11 +97,39 @@ class SignPageWidget(QWidget):
                         background-color: #192C2F; 
                     } 
                 """)
+
+
         key_btn.clicked.connect(self.select_key)
         key_layout = QHBoxLayout()
         key_layout.addWidget(self.key_path_input)
         key_layout.addWidget(key_btn)
         layout.addLayout(key_layout)
+
+        # Wybór klucza HMac
+        self.key_hmac_path_input = QLineEdit(self)
+        self.key_hmac_path_input.setPlaceholderText("Wybierz klucz HMac ...")
+        self.key_hmac_path_input.setReadOnly(True)
+        key_hmac_btn = QPushButton("Wybierz klucz HMac")
+        key_hmac_btn.setStyleSheet(""" 
+                            QPushButton { 
+                                background-color: #78B2D1; 
+                                color: white; 
+                                padding: 5px; 
+                                border: none; 
+                                border-radius: 5px; 
+                                width: 180px; 
+                                height: 15px; 
+                            } 
+                            QPushButton:hover { 
+                                background-color: #192C2F; 
+                            } 
+                        """)
+
+        key_hmac_btn.clicked.connect(self.select_key_hmac)
+        key_hmac_layout = QHBoxLayout()
+        key_hmac_layout.addWidget(self.key_hmac_path_input)
+        key_hmac_layout.addWidget(key_hmac_btn)
+        layout.addLayout(key_hmac_layout)
 
         # Przycisk podpisywania
         self.generate_btn = QPushButton("Podpisz Dokument")
@@ -137,49 +166,82 @@ class SignPageWidget(QWidget):
         if pem_file:
             self.key_path_input.setText(pem_file)
 
+    def select_key_hmac(self):
+        """Pozwól użytkownikowi wybrać klucz prywatny."""
+        pem_file, _ = QFileDialog.getOpenFileName(self, "Wybierz klucz prywatny HMac", "",
+                                                  "Private Key Files (*.txt);;All Files (*)")
+        if pem_file:
+            self.key_hmac_path_input.setText(pem_file)
+
     def sign_document(self):
         document_path = self.file_path_input.text()
         pem_file_path = self.key_path_input.text()
+        hmac_key_file_path = self.key_hmac_path_input.text()
 
-        if not document_path or not pem_file_path:
-            QMessageBox.critical(self, "Błąd", "Musisz wybrać plik do podpisania oraz certyfikat.")
+        if not document_path:
+            QMessageBox.critical(self, "Błąd", "Musisz wybrać plik do podpisania.")
+            return
+
+        if not pem_file_path and not hmac_key_file_path:
+            QMessageBox.critical(self, "Błąd", "Musisz wybrać certyfikat (RSA) lub klucz HMAC.")
             return
 
         try:
-            # Załaduj klucz prywatny
-            private_key, _ = load_certificate_and_private_key(pem_file_path)
+            if pem_file_path:
+                # --- Podpis RSA ---
+                private_key, _ = load_certificate_and_private_key(pem_file_path)
 
-            # Podpisz dokument
-            with open(document_path, 'rb') as file:
-                document_data = file.read()
+                with open(document_path, 'rb') as file:
+                    document_data = file.read()
 
-            # Oblicz hash dokumentu
-            digest = hashes.Hash(hashes.SHA256())
-            digest.update(document_data)
-            document_hash = digest.finalize()
+                # Oblicz hash dokumentu
+                digest = hashes.Hash(hashes.SHA256())
+                digest.update(document_data)
+                document_hash = digest.finalize()
 
-            # Podpisz hash zamiast pełnych danych
-            signature = private_key.sign(
-                document_hash,
-                padding.PKCS1v15(),
-                hashes.SHA256()
-            )
+                # Podpisz hash zamiast pełnych danych
+                signature = private_key.sign(
+                    document_hash,
+                    padding.PKCS1v15(),
+                    hashes.SHA256()
+                )
+                # Otwórz okno wyboru lokalizacji zapisu
+                signature_path, _ = QFileDialog.getSaveFileName(self, "Zapisz podpisany dokument", "",
+                                                                "Signature Files (*.sig);;All Files (*)")
 
-            # Otwórz okno wyboru lokalizacji zapisu
-            signature_path, _ = QFileDialog.getSaveFileName(self, "Zapisz podpisany dokument", "",
-                                                            "Signature Files (*.sig);;All Files (*)")
+                if signature_path:
+                    # Zapisz podpis do wybranej lokalizacji
+                    with open(signature_path, 'wb') as sig_file:
+                        sig_file.write(signature)
 
-            if signature_path:
-                # Zapisz podpis do wybranej lokalizacji
-                with open(signature_path, 'wb') as sig_file:
-                    sig_file.write(signature)
+                    # Powiadom użytkownika o sukcesie
+                    QMessageBox.information(self, "Sukces",
+                                            f"Dokument został podpisany. Podpis zapisano w: {signature_path}")
+                else:
+                    # Jeśli użytkownik nie wybrał lokalizacji
+                    QMessageBox.warning(self, "Brak lokalizacji", "Nie wybrano lokalizacji do zapisania podpisu.")
 
-                # Powiadom użytkownika o sukcesie
-                QMessageBox.information(self, "Sukces",
-                                        f"Dokument został podpisany. Podpis zapisano w: {signature_path}")
-            else:
-                # Jeśli użytkownik nie wybrał lokalizacji
-                QMessageBox.warning(self, "Brak lokalizacji", "Nie wybrano lokalizacji do zapisania podpisu.")
+            elif hmac_key_file_path:
+                # --- Podpis HMAC ---
+                with open(hmac_key_file_path, 'r') as key_file:
+                    hmac_key = key_file.read().strip()
+
+                with open(document_path, 'rb') as file:
+                    document_data = file.read()
+
+                # Oblicz HMAC z użyciem SHA-256
+                signature = hmac.new(hmac_key.encode(), document_data, hashlib.sha256).hexdigest()
+
+                # Zapisz podpis
+                signature_path, _ = QFileDialog.getSaveFileName(self, "Zapisz podpisany dokument", "",
+                                                                "Signature Files (*.sig);;All Files (*)")
+                if signature_path:
+                    with open(signature_path, 'w' if isinstance(signature, str) else 'wb') as sig_file:
+                        sig_file.write(signature if isinstance(signature, str) else signature.encode())
+
+                    QMessageBox.information(self, "Sukces", f"Podpis zapisano w: {signature_path}")
+                else:
+                    QMessageBox.warning(self, "Brak lokalizacji", "Nie wybrano lokalizacji do zapisania podpisu.")
 
         except Exception as e:
             QMessageBox.critical(self, "Błąd", f"Nie udało się podpisać dokumentu: {str(e)}")
