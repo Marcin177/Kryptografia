@@ -6,6 +6,8 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
+import hmac
+import hashlib
 
 class VerifyPageWidget(QWidget):
     def __init__(self):
@@ -98,6 +100,17 @@ class VerifyPageWidget(QWidget):
         file_doc_layout.addWidget(file_doc_btn)
         layout.addLayout(file_doc_layout)
 
+        self.file_hmac_path_input = QLineEdit(self)
+        self.file_hmac_path_input.setPlaceholderText("Wybierz klucz HMac ...")
+        self.file_hmac_path_input.setReadOnly(True)
+        file_hmac_btn = QPushButton("Wybierz klucz HMac")
+        file_hmac_btn.setStyleSheet(self.get_button_style())
+        file_hmac_btn.clicked.connect(self.select_hmac)
+        file_hmac_layout = QHBoxLayout()
+        file_hmac_layout.addWidget(self.file_hmac_path_input)
+        file_hmac_layout.addWidget(file_hmac_btn)
+        layout.addLayout(file_hmac_layout)
+
         # Przycisk weryfikacji
         generate_btn = QPushButton("Zweryfikuj Podpis")
         generate_btn.setStyleSheet(""" QPushButton {
@@ -188,93 +201,142 @@ class VerifyPageWidget(QWidget):
         if file:
             self.file_doc_path_input.setText(file)
 
+    def select_hmac(self):
+        file, _ = QFileDialog.getOpenFileName(self, "Wybierz klucz HMac", "", "Pliki dokumentów (*)")
+        if file:
+            self.file_hmac_path_input.setText(file)
+
     def verify_page(self):
         sig_file = self.file_sig_path_input.text()
         cert_file = self.file_cert_path_input.text()
         document_file = self.file_doc_path_input.text()
         cert_chain_file = self.file_cert_chain_path_input.text()
+        hmac_key_file = self.file_hmac_path_input.text()
 
-        if not (sig_file and cert_chain_file and document_file):
-            self.status_label.setText("Musisz wybrać wszystkie wymagane pliki.")
+        # Wyczyść informacje o certyfikacie
+        for i in reversed(range(self.cert_info_layout.count())):
+            widget = self.cert_info_layout.itemAt(i).widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        if not document_file or not sig_file:
+            self.status_label.setText("Musisz wybrać dokument i podpis.")
             self.status_label.setStyleSheet("color: red;")
             return
 
         try:
-            # Weryfikacja podpisu
-            result = verify_signature(sig_file, cert_chain_file, document_file)
+            if cert_file and cert_chain_file:
+                # --- Weryfikacja RSA ---
+                # Załaduj certyfikat użytkownika
+                user_cert = x509.load_pem_x509_certificate(open(cert_file, 'rb').read(), default_backend())
+                public_key = user_cert.public_key()
 
-            if result != "Podpis jest ważny!":
-                self.status_label.setAlignment(Qt.AlignCenter)
-                self.status_label.setText("Weryfikacja podpisu nie powiodła się.")
-                self.status_label.setStyleSheet("""
-                                    color: red;
-                                    font-size: 16px;
-                                    font-weight: bold;
-                                    background-color: #ffe6e6;
-                                    padding: 5px;
-                                    border-radius: 5px;
-                                """)
-                # Wyczyść informacje o certyfikacie
-                for i in reversed(range(self.cert_info_layout.count())):
-                    widget = self.cert_info_layout.itemAt(i).widget()
-                    if widget is not None:
-                        widget.deleteLater()
-                return
+                # Załaduj podpis
+                with open(sig_file, 'rb') as sig:
+                    signature = sig.read()
 
-            # Weryfikacja łańcucha certyfikatów
-            cert_chain = self.get_certificate_chain(cert_chain_file)
-            if not self.verify_certificate_chain(cert_chain):
-                self.status_label.setAlignment(Qt.AlignCenter)
-                self.status_label.setText("Łańcuch certyfikatów jest nieprawidłowy.")
-                self.status_label.setStyleSheet("""
-                                    color: red;
-                                    font-size: 16px;
-                                    font-weight: bold;
-                                    background-color: #ffe6e6;
-                                    padding: 5px;
-                                    border-radius: 5px;
-                                """)
-                # Wyczyść informacje o certyfikacie
-                for i in reversed(range(self.cert_info_layout.count())):
-                    widget = self.cert_info_layout.itemAt(i).widget()
-                    if widget is not None:
-                        widget.deleteLater()
-                return
-                # Sprawdzenie, czy certyfikat użytkownika jest zgodny z pierwszym certyfikatem w łańcuchu
-            user_cert = x509.load_pem_x509_certificate(open(cert_file, 'rb').read(), default_backend())
-            first_cert = cert_chain[0]
+                # Załaduj dokument
+                with open(document_file, 'rb') as doc:
+                    document_data = doc.read()
 
-            if user_cert.public_key() != first_cert.public_key():
-                self.status_label.setAlignment(Qt.AlignCenter)
-                self.status_label.setText(
+                # Oblicz hash dokumentu
+                digest = hashes.Hash(hashes.SHA256())
+                digest.update(document_data)
+                document_hash = digest.finalize()
+
+                # Weryfikuj podpis
+                public_key.verify(
+                    signature,
+                    document_hash,
+                    padding.PKCS1v15(),
+                    hashes.SHA256()
+                )
+
+                # Weryfikacja łańcucha certyfikatów
+                cert_chain = self.get_certificate_chain(cert_chain_file)
+                if not self.verify_certificate_chain(cert_chain):
+                    self.status_label.setAlignment(Qt.AlignCenter)
+                    self.status_label.setText("Łańcuch certyfikatów jest nieprawidłowy.")
+                    self.status_label.setStyleSheet("""
+                        color: red;
+                        font-size: 16px;
+                        font-weight: bold;
+                        background-color: #ffe6e6;
+                        padding: 5px;
+                        border-radius: 5px;
+                    """)
+                    return
+
+                first_cert = cert_chain[0]
+                if user_cert.public_key() != first_cert.public_key():
+                    self.status_label.setAlignment(Qt.AlignCenter)
+                    self.status_label.setText(
                         "Certyfikat użytkownika nie jest zgodny z pierwszym certyfikatem w łańcuchu.")
-                self.status_label.setStyleSheet("""
-                                            color: red;
-                                            font-size: 16px;
-                                            font-weight: bold;
-                                            background-color: #ffe6e6;
-                                            padding: 5px;
-                                            border-radius: 5px;
-                                        """)
-                # Wyczyść informacje o certyfikacie
-                for i in reversed(range(self.cert_info_layout.count())):
-                    widget = self.cert_info_layout.itemAt(i).widget()
-                    if widget is not None:
-                        widget.deleteLater()
-                return
+                    self.status_label.setStyleSheet("""
+                        color: red;
+                        font-size: 16px;
+                        font-weight: bold;
+                        background-color: #ffe6e6;
+                        padding: 5px;
+                        border-radius: 5px;
+                    """)
+                    return
 
-            self.status_label.setAlignment(Qt.AlignCenter)
-            self.status_label.setText("Weryfikacja podpisu zakończona sukcesem!")
-            self.status_label.setStyleSheet("""
-                color: green;
-                font-size: 16px;
-                font-weight: bold;
-                background-color: #e6ffe6;
-                padding: 5px;
-                border-radius: 5px;
-            """)
-            # Wyświetlenie danych certyfikatu
-            self.update_cert_chain_info(cert_chain)
+                self.status_label.setAlignment(Qt.AlignCenter)
+                self.status_label.setText("Weryfikacja podpisu RSA zakończona sukcesem!")
+                self.status_label.setStyleSheet("""
+                    color: green;
+                    font-size: 16px;
+                    font-weight: bold;
+                    background-color: #e6ffe6;
+                    padding: 5px;
+                    border-radius: 5px;
+                """)
+                # Wyświetlenie danych certyfikatu
+                self.update_cert_chain_info(cert_chain)
+            elif hmac_key_file:
+                # --- Weryfikacja HMAC ---
+                with open(hmac_key_file, 'r') as key_file:
+                    hmac_key = key_file.read().strip()
+
+                # Załaduj dokument
+                with open(document_file, 'rb') as doc:
+                    document_data = doc.read()
+
+                # Załaduj podpis
+                with open(sig_file, 'r') as sig:
+                    signature = sig.read().strip()
+
+                # Oblicz HMAC
+                computed_hmac = hmac.new(hmac_key.encode(), document_data, hashlib.sha256).hexdigest()
+
+                if computed_hmac != signature:
+                    self.status_label.setAlignment(Qt.AlignCenter)
+                    self.status_label.setText("Weryfikacja podpisu HMAC nie powiodła się.")
+                    self.status_label.setStyleSheet("""
+                        color: red;
+                        font-size: 16px;
+                        font-weight: bold;
+                        background-color: #ffe6e6;
+                        padding: 5px;
+                        border-radius: 5px;
+                    """)
+                    return
+
+                self.status_label.setAlignment(Qt.AlignCenter)
+                self.status_label.setText("Weryfikacja podpisu HMAC zakończona sukcesem!")
+                self.status_label.setStyleSheet("""
+                    color: green;
+                    font-size: 16px;
+                    font-weight: bold;
+                    background-color: #e6ffe6;
+                    padding: 5px;
+                    border-radius: 5px;
+                """)
+
+            else:
+                self.status_label.setText("Nie podano wymaganych plików do weryfikacji.")
+                self.status_label.setStyleSheet("color: red;")
 
         except Exception as e:
             self.status_label.setAlignment(Qt.AlignCenter)
@@ -287,11 +349,6 @@ class VerifyPageWidget(QWidget):
                 padding: 5px;
                 border-radius: 5px;
             """)
-            # Wyczyść informacje o certyfikacie
-            for i in reversed(range(self.cert_info_layout.count())):
-                widget = self.cert_info_layout.itemAt(i).widget()
-                if widget is not None:
-                    widget.deleteLater()
 
     def verify_certificate_chain(self, cert_chain):
         for i in range(len(cert_chain) - 1):
