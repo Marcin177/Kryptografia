@@ -1,7 +1,6 @@
 import os
 import subprocess
 import sys
-import psutil
 import tkinter as tk
 from tkinter import scrolledtext, messagebox, filedialog
 import datetime
@@ -55,7 +54,7 @@ class AppGUI:
         button_frame.pack()
         buttons = [
             ("Podstawieniowe", lambda: self.show_cipher_frame("Podstawieniowe")),
-            ("Transpozycyjne", lambda: self.show_cipher_frame("Transpozycyjne")),
+            ("Przestawieniowy", lambda: self.show_cipher_frame("Transpozycyjne")),
         ]
         for text, command in buttons:
             tk.Button(button_frame, text=text, command=command).pack(side=tk.LEFT, padx=5, pady=10)
@@ -375,24 +374,24 @@ class AppGUI:
 
     def setup_cipher_frame(self):
         self.add_back_button(self.cipher_frame)
-        self.cipher_type_label = tk.Label(self.cipher_frame, text="", font=("Arial", 14))
-        self.cipher_type_label.pack(pady=10)
-        input_frame = tk.Frame(self.cipher_frame)
-        input_frame.pack(pady=10)
-        tk.Label(input_frame, text="Tekst do zaszyfrowania/odszyfrowania:").pack()
-        self.text_input_text = tk.Text(input_frame, height=5, width=40)
-        self.text_input_text.pack()
-        file_button_frame = tk.Frame(input_frame)
-        file_button_frame.pack(pady=5)
-        tk.Button(file_button_frame, text="Wybierz plik", command=self.load_file).pack(side=tk.LEFT, padx=5)
-        tk.Button(file_button_frame, text="Zapisz do pliku", command=self.save_file).pack(side=tk.LEFT, padx=5)
-        button_frame = tk.Frame(self.cipher_frame)
-        button_frame.pack(pady=10)
-        tk.Button(button_frame, text="Szyfrowanie", command=lambda: self.process_text("szyfrowanie")).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Odszyfrowywanie", command=lambda: self.process_text("odszyfrowywanie")).pack(side=tk.LEFT, padx=5)
-        self.cipher_result_text = scrolledtext.ScrolledText(self.cipher_frame, height=5, width=40, wrap=tk.WORD)
-        self.cipher_result_text.pack(pady=10)
-        self.cipher_result_text.config(state=tk.DISABLED)
+        self.cipher_type_label1 = tk.Label(self.cipher_frame, text="", font=("Arial", 14))
+        self.cipher_type_label1.pack(pady=10)
+        input1_frame = tk.Frame(self.cipher_frame)
+        input1_frame.pack(pady=10)
+        tk.Label(input1_frame, text="Tekst do zaszyfrowania/odszyfrowania:").pack()
+        self.text_input1_text = tk.Text(input1_frame, height=5, width=40)
+        self.text_input1_text.pack()
+        file_button1_frame = tk.Frame(input1_frame)
+        file_button1_frame.pack(pady=5)
+        tk.Button(file_button1_frame, text="Wybierz plik", command=self.load_file).pack(side=tk.LEFT, padx=5)
+        tk.Button(file_button1_frame, text="Zapisz do pliku", command=self.save_file).pack(side=tk.LEFT, padx=5)
+        button1_frame = tk.Frame(self.cipher_frame)
+        button1_frame.pack(pady=10)
+        tk.Button(button1_frame, text="Szyfrowanie", command=lambda: self.process_text("szyfrowanie")).pack(side=tk.LEFT, padx=5)
+        tk.Button(button1_frame, text="Odszyfrowywanie", command=lambda: self.process_text("odszyfrowywanie")).pack(side=tk.LEFT, padx=5)
+        self.cipher_result_text1 = scrolledtext.ScrolledText(self.cipher_frame, height=5, width=40, wrap=tk.WORD)
+        self.cipher_result_text1.pack(pady=10)
+        self.cipher_result_text1.config(state=tk.DISABLED)
 
 
 
@@ -753,9 +752,9 @@ class AppGUI:
         self.cipher_frame.pack(fill=tk.BOTH, expand=True)
         self.cipher_type_label.config(text=f"Szyfrowanie {cipher_type}")
         self.current_cipher_type = cipher_type
-        self.cipher_result_text.config(state=tk.NORMAL)
-        self.cipher_result_text.delete('1.0', tk.END)
-        self.cipher_result_text.config(state=tk.DISABLED)
+        self.cipher_result_text1.config(state=tk.NORMAL)
+        self.cipher_result_text1.delete('1.0', tk.END)
+        self.cipher_result_text1.config(state=tk.DISABLED)
 
     def show_key_rsa_frame(self, cipher_type):
         self.current_cipher_type = cipher_type
@@ -835,11 +834,11 @@ class AppGUI:
         if file_path:
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
-                self.text_input_text.delete('1.0', tk.END)
-                self.text_input_text.insert(tk.END, content)
+                self.text_input1_text.delete('1.0', tk.END)
+                self.text_input1_text.insert(tk.END, content)
 
     def save_file(self):
-        content = self.cipher_result_text.get('1.0', tk.END).strip()
+        content = self.cipher_result_text1.get('1.0', tk.END).strip()
         if content:
             current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{self.current_cipher_type}_{current_time}.txt"
@@ -879,7 +878,7 @@ class AppGUI:
             self.cipher_result_text.config(state=tk.DISABLED)
 
     def process_text(self, action):
-        text = self.text_input_text.get('1.0', tk.END).strip()
+        text = self.text_input1_text.get('1.0', tk.END).strip()
         key = global_key
         print(text)
         if text:
@@ -909,15 +908,15 @@ class AppGUI:
                     result = aes_szyfrowanie(text, global_key)
                 else:
                     result = aes_deszyfrowanie(text, global_key)
-            self.cipher_result_text.config(state=tk.NORMAL)
-            self.cipher_result_text.delete('1.0', tk.END)
-            self.cipher_result_text.insert(tk.END, result)
-            self.cipher_result_text.config(state=tk.DISABLED)
+            self.cipher_result_text1.config(state=tk.NORMAL)
+            self.cipher_result_text1.delete('1.0', tk.END)
+            self.cipher_result_text1.insert(tk.END, result)
+            self.cipher_result_text1.config(state=tk.DISABLED)
         else:
-            self.cipher_result_text.config(state=tk.NORMAL)
-            self.cipher_result_text.delete('1.0', tk.END)
-            self.cipher_result_text.insert(tk.END, "Proszę wprowadzić tekst lub wybrać plik.")
-            self.cipher_result_text.config(state=tk.DISABLED)
+            self.cipher_result_text1.config(state=tk.NORMAL)
+            self.cipher_result_text1.delete('1.0', tk.END)
+            self.cipher_result_text1.insert(tk.END, "Proszę wprowadzić tekst lub wybrać plik.")
+            self.cipher_result_text1.config(state=tk.DISABLED)
 
     def setup_cipher_frame_rsa_text(self):
         # Sprawdzenie, czy public_key_entry i private_key_entry są już zainicjowane
